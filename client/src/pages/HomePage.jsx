@@ -1,437 +1,216 @@
-import { Boxes } from "../components/ui/background-boxes";
+// External Libraries
 import { useState, useEffect } from "react";
 import { FaGoogle, FaFacebookF, FaTwitter } from "react-icons/fa";
 
+// Internal Components
+import { Boxes } from "../components/ui/background-boxes";
 import PlotlyChart from "../components/PlotlyChart";
 
 export default function HomePage() {
   const [modal, setModal] = useState("none");
   const [successMessage, setSuccessMessage] = useState("");
   const [showPlotTypeModal, setShowPlotTypeModal] = useState(false);
-  const [selectedChartType, setSelectedChartType] = useState("Bar"); // default chart
+  const [open, setOpen] = useState(false);
+  const [selectedOption, setSelectedOption] = useState({ label: "Handpicked", icon: "💙" });
+  const [showFileTypeDropdown, setShowFileTypeDropdown] = useState(false);
+  const [selectedFileType, setSelectedFileType] = useState({ label: "All File Types", icon: "📂" });
   const [selectedFile, setSelectedFile] = useState(null);
   const [excelData, setExcelData] = useState([]);
   const [xAxisColumn, setXAxisColumn] = useState("");
   const [yAxisColumn, setYAxisColumn] = useState("");
+  const [zAxisColumn, setZAxisColumn] = useState("");
+  const [selectedPlotType, setSelectedPlotType] = useState("");
   const [stringColumns, setStringColumns] = useState([]);
   const [numericColumns, setNumericColumns] = useState([]);
 
-  const [selectedPlotType, setSelectedPlotType] = useState(""); // Add this
-  const [zAxisColumn, setZAxisColumn] = useState("");
-  const [authData, setAuthData] = useState({
-    username: "",
-    email: "",
-    password: "",
-  });
-  const [currentUser, setCurrentUser] = useState(null);
-  useEffect(() => {
-    const savedData = localStorage.getItem("excelData");
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      setExcelData(parsed);
-
-      const columns = Object.keys(parsed[0] || {});
-      setXAxisColumn(columns[0]);
-      setYAxisColumn(columns[1] || columns[0]);
-
-      const sampleRow = parsed[0];
-      const strings = columns.filter(
-        (col) => typeof sampleRow[col] === "string"
-      );
-      const numbers = columns.filter(
-        (col) => typeof sampleRow[col] === "number"
-      );
-      setStringColumns(strings);
-      setNumericColumns(numbers);
-    }
-  }, [currentUser]); 
-
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
-  const handleUpload = async () => {
-    const formData = new FormData();
-    formData.append("excelFile", selectedFile);
+  const handleUpload = async () => { //is it check out file was upload or not
+    if (!selectedFile) return;         //if file was not upload  this is not working
+    const formData = new FormData();  //formdata is the object it was add the excelfile with key
+    formData.append("file", selectedFile);  //key "file" it was match by backend data upload "file"
 
     try {
       const response = await fetch("http://localhost:5000/api/upload", {
-        method: "POST",
+        method: "POST", //this is fetch the data fro backend api /upload and this post request kare che file sathe
         body: formData,
       });
 
-      const result = await response.json().catch(() => {
-        throw new Error("Server response is not valid JSON");
+      if (!response.ok) throw new Error("Upload failed"); //this was handle the error
+
+      const data = await response.json(); //backend data excel to json 
+      setExcelData(data);  //use exceldata and store in froentend 
+
+      const sampleRow = data[0]; //sample row created and detect the data
+      const stringCols = [];
+      const numericCols = [];
+
+      Object.keys(sampleRow).forEach((key) => { // check the data value from excel sheet row
+        const val = sampleRow[key];
+        if (!isNaN(parseFloat(val)) && isFinite(val)) {
+          numericCols.push(key); //when is it numeric clos to store in numeric row
+        } else {
+          stringCols.push(key); //if this data are string cols store in string cols
+        }
       });
 
-      if (response.ok) {
-        setSuccessMessage("✅ Upload successful!");
-        // 🧼 Clean column names (trim extra spaces)
-        const cleanedData = result.data.map((row) => {
-          const cleanedRow = {};
-          Object.keys(row).forEach((key) => {
-            cleanedRow[key.trim()] = row[key];
-          });
-          return cleanedRow;
-        });
-
-        setExcelData(cleanedData);
-        localStorage.setItem("excelData", JSON.stringify(cleanedData)); 
-
-        // Extract and set axis columns
-        const columns = Object.keys(cleanedData[0] || {});
-        setXAxisColumn(columns[0]);
-        setYAxisColumn(columns[1] || columns[0]);
-
-        const sampleRow = result.data[0] || {};
-
-        // Separate columns by type
-        const stringColumns = columns.filter(
-          (col) => typeof sampleRow[col] === "string"
-        );
-        const numericColumns = columns.filter(
-          (col) => typeof sampleRow[col] === "number"
-        );
-
-        // Save for dropdowns
-        setStringColumns(stringColumns);
-        setNumericColumns(numericColumns);
-
-        setXAxisColumn(columns[0]);
-        setYAxisColumn(columns[1] || columns[0]);
-      } else {
-        alert("❌ Upload failed: " + result.msg);
-      }
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      alert("❌ Network or server error. " + error.message);
+      setStringColumns(stringCols);  //store in sepreate columns for dropdown
+      setNumericColumns(numericCols);
+      setXAxisColumn(stringCols[0] || numericCols[0]); // always x is not always but mostly x is string
+      setYAxisColumn(numericCols[0] || ""); //y is numeric 
+      setZAxisColumn(numericCols[1] || "");  //z is 2nd numeric 
+    } catch (err) {
+      console.error("Error uploading file:", err); //this is giving to the error
     }
+  };
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(""), 2000); //this msg was only show 2sec
+      return () => clearTimeout(timer); //if you are not leck your memory thats why im using clear timeout function
+    }
+  }, [successMessage]);  // file upload suceessdully show the mess successfully
+
+  const handleSelect = (label, icon) => { //this is dropdown function for the chart dashboad file nd etc
+    setSelectedOption({ label, icon });
+    setOpen(false);
   };
 
   const chartCategories = {
-    Simple: [
-      "Scatter",
-      "Bar",
-      "Line",
-      "Area",
-      "Pie",
-      "Table",
-      "Contour",
-      "Heatmap",
-    ],
-    Distributions: [
-      "Box",
-      "Violin",
-      "Histogram",
-      "2D Histogram",
-      "2D Contour Histogram",
-    ],
-    "3D": [
-      "3D Scatter",
-      "3D Line",
-      "3D Surface",
-      "3D Mesh",
-      "Cone",
-      "Streamtube",
-    ],
-    Maps: [
-      "Tile Map",
-      "Atlas Map",
-      "Choropleth Tile Map",
-      "Choropleth Atlas Map",
-      "Density Tile Map",
-    ],
+    Simple: ["Scatter", "Bar", "Line", "Area", "Pie", "Table", "Contour", "Heatmap"],
+    Distributions: ["Box", "Violin", "Histogram", "2D Histogram", "2D Contour Histogram"],
+    "3D": ["3D Scatter", "3D Line", "3D Surface", "3D Mesh", "Cone", "Streamtube"],
+    Maps: ["Tile Map", "Atlas Map", "Choropleth Tile Map", "Choropleth Atlas Map", "Density Tile Map"],
     Finance: ["Candlestick", "OHLC", "Waterfall", "Funnel", "Funnel Area"],
     Specialized: [
-      "Polar Scatter",
-      "Polar Bar",
-      "Ternary Scatter",
-      "Sunburst",
-      "Treemap",
-      "Sankey",
-      "Parallel Coordinates",
-      "Carpet",
-    ],
-  };
-
-  const handleSignUp = async () => {
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(authData),
-      });
-
-      const result = await res.json();
-      if (res.ok) {
-        setSuccessMessage("✅ Signed up successfully");
-        setModal("none");
-        setAuthData({ username: "", email: "", password: "" });
-      } else {
-        alert("❌ Sign up failed: " + result.msg);
-      }
-    } catch (err) {
-      alert("❌ Network error: " + err.message);
-    }
-  };
-
-  const handleSignIn = async () => {
-    try {
-      const res = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: authData.email,
-          password: authData.password,
-        }),
-      });
-
-      const result = await res.json();
-      if (res.ok) {
-        setSuccessMessage("✅ Signed in successfully");
-        localStorage.setItem("token", result.token); // Save token for later use
-        setCurrentUser(result.user); // Save logged-in user
-        setModal("none");
-      } else {
-        alert("❌ Sign in failed: " + result.msg);
-      }
-    } catch (err) {
-      alert("❌ Network error: " + err.message);
-    }
+      "Polar Scatter", "Polar Bar", "Ternary Scatter", "Sunburst",
+      "Treemap", "Sankey", "Parallel Coordinates", "Carpet"
+    ]
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#0f172a] px-4 text-white">
-      <Boxes className="z-0 absolute top-0 left-0 w-full h-full" />
+    <div className="relative flex  min-h-screen flex-col items-center justify-center overflow-hidden bg-[#0f172a] px-4 text-white">
+      <Boxes />
 
+      {/* Navbar */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between bg-opacity-50 px-8 py-4">
-        <h1 className="text-xl font-bold text-white">📊 Excel Analytics</h1>
-
-        {currentUser ? (
-          <div className="flex items-center space-x-4">
-            <span className="text-white text-sm">
-              👤 {currentUser.username}
-            </span>
-            <button
-              onClick={() => {
-                localStorage.removeItem("token");
-                localStorage.removeItem("excelData"); // clear saved Excel data too
-                setCurrentUser(null);
-                setExcelData([]); // clear from memory
-                setSuccessMessage("🚪 Logged out successfully");
-              }}
-              className="rounded bg-red-500 px-4 py-1 text-sm hover:bg-red-600"
-            >
-              Logout
-            </button>
-          </div>
-        ) : (
-          <div className="space-x-4">
-            <button
-              onClick={() => setModal("signin")}
-              className="rounded border border-white px-4 py-1 text-sm hover:bg-white hover:text-black"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => setModal("signup")}
-              className="rounded bg-blue-500 px-4 py-1 text-sm hover:bg-blue-600"
-            >
-              Sign Up
-            </button>
-          </div>
-        )}
+        <h1 className="text-xl font-bold text-white ">Excel Analytics</h1>
+        <div className="space-x-4">
+          <button onClick={() => setModal("signin")} className="rounded border border-white px-4 py-1 text-sm hover:bg-white hover:text-black">Sign In</button>
+          <button onClick={() => setModal("signup")} className="rounded bg-blue-500 px-4 py-1 text-sm hover:bg-blue-600">Sign Up</button>
+        </div>
       </div>
 
+      {/* Success popup */}
       {successMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 rounded bg-green-100 px-6 py-3 text-green-800 shadow-md">
           {successMessage}
         </div>
       )}
 
-      <div className="z-10 mt-24 w-full max-w-3xl text-center">
-        <h2 className="text-3xl font-bold md:text-4xl">Excel Chart Studio</h2>
-        <p className="mt-2 text-gray-300">
-          Search public charts by Chart Studio users
-        </p>
+      {/* Main Center Block */}
+      <div className="z-10 mt-20 w-full max-w-3xl text-center">
+        <h2 className="text-3xl font-bold md:text-4xl font-serif">Excel Chart Studio</h2>
+        <p className="mt-2 text-gray-400 ">Any public charts by Chart Studio users</p>
 
-        <div className="mt-6 flex items-center justify-center">
-          <input
-            type="text"
-            placeholder="Type to search"
-            className="w-full max-w-xl rounded-l-md border border-gray-400 px-4 py-2 text-black"
-          />
-          <button className="rounded-r-md bg-gray-300 px-4 py-2 text-black">
-            🔍
-          </button>
-        </div>
+        {/* <div className="mt-6 flex items-center justify-center">
+          <input type="text" placeholder="Type to search" className="w-full max-w-xl rounded-l-md border border-gray-400 px-4 py-2 text-black" />
+          <button className="rounded-r-md bg-gray-300 px-4 py-2 text-black">🔍</button>
+        </div> */}
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
-          <select className="rounded-md bg-white px-4 py-2 text-sm text-black">
-            <option>💙 Handpicked</option>
-          </select>
-          <select className="rounded-md bg-white px-4 py-2 text-sm text-black">
-            <option>📂 All File Types</option>
-          </select>
-          <button
-            onClick={() => setShowPlotTypeModal(true)}
-            className="relative rounded-md bg-white px-4 py-2 pr-8 text-sm text-black border appearance-none"
-          >
-            📈 Plot Type
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-              ▼
-            </span>
-          </button>
-        </div>
-
-        <div className="mt-6 flex flex-col items-center">
-          <input
-            type="file"
-            accept=".xlsx"
-            onChange={(e) => setSelectedFile(e.target.files[0])}
-            className="text-sm text-white mb-2"
-          />
-          <button
-            onClick={handleUpload}
-            disabled={!selectedFile}
-            className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 disabled:bg-gray-400"
-          >
-            Upload Excel File
-          </button>
-        </div>
-      </div>
-
-      {excelData && excelData.length > 0 && excelData[0] && (
-        <div className="mt-8 w-full max-w-4xl overflow-x-auto bg-white text-black rounded p-4 shadow-lg z-10 relative">
-          <h3 className="mb-2 text-lg font-semibold">📄 Uploaded Excel Data</h3>
-          <table className="min-w-full border border-gray-300 bg-white text-black rounded">
-            <thead>
-              <tr className="bg-gray-200">
-                {Object.keys(excelData[0] || {}).map((header, idx) => (
-                  <th key={idx} className="px-4 py-2 border">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {excelData.map((row, rowIndex) => (
-                <tr key={rowIndex} className="hover:bg-gray-100">
-                  {Object.values(row).map((cell, cellIndex) => (
-                    <td key={cellIndex} className="px-4 py-2 border">
-                      {cell}
-                    </td>
+          {/* Handpicked Dropdown */}
+          <div className="relative inline-block text-left">
+            <button onClick={() => setOpen(!open)} className="bg-white px-4 py-2 rounded shadow flex items-center gap-2 text-black">
+              <span>{selectedOption.icon}</span>
+              <span>{selectedOption.label}</span>
+              <span className="text-gray-500">▼</span>
+            </button>
+            {open && (
+              <div className="absolute mt-2 w-64 rounded-md bg-white shadow-lg z-10">
+                <ul className="py-1 text-sm text-gray-700">
+                  {[
+                    { label: "Handpicked", icon: "💙", desc: "Beautiful plots curated by the Plotly team" },
+                    { label: "Popular", icon: "⭐", desc: "Most popular plots on Plotly" },
+                    { label: "Recent", icon: "🕒", desc: "Latest user-created plots" },
+                  ].map(({ label, icon, desc }) => (
+                    <li key={label} onClick={() => handleSelect(label, icon)} className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                      {icon} {label}<br />
+                      <span className="text-xs text-gray-500">{desc}</span>
+                    </li>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {excelData.length > 0 && (
-        <div className="mt-6 w-full max-w-4xl bg-white text-black rounded-lg p-4 shadow z-10">
-          <h3 className="text-lg font-semibold mb-4">📌 Select Axes</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* X-Axis Selector */}
-            <div>
-              <label className="block font-medium mb-1">X-Axis:</label>
-              <select
-                className="w-full text-black rounded px-3 py-2 border border-gray-300"
-                value={xAxisColumn}
-                onChange={(e) => setXAxisColumn(e.target.value)}
-              >
-                {[...stringColumns, ...numericColumns].map((col) => (
-                  <option key={col} value={col}>
-                    {col}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Y-Axis Selector */}
-            <div>
-              <label className="block font-medium mb-1">Y-Axis:</label>
-              <select
-                className="w-full text-black rounded px-3 py-2 border border-gray-300"
-                value={yAxisColumn}
-                onChange={(e) => setYAxisColumn(e.target.value)}
-              >
-                {numericColumns.map((col) => (
-                  <option key={col} value={col}>
-                    {col}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Z-Axis Selector (only for 3D) */}
-            {[
-              "3D Scatter",
-              "3D Line",
-              "3D Surface",
-              "3D Mesh",
-              "Cone",
-              "Streamtube",
-            ].includes(selectedPlotType) && (
-              <div>
-                <label className="block font-medium mb-1">Z-Axis:</label>
-                <select
-                  className="w-full text-black rounded px-3 py-2 border border-gray-300"
-                  value={zAxisColumn}
-                  onChange={(e) => setZAxisColumn(e.target.value)}
-                >
-                  {numericColumns.map((col) => (
-                    <option key={col} value={col}>
-                      {col}
-                    </option>
-                  ))}
-                </select>
+                </ul>
               </div>
             )}
           </div>
+
+          {/* File Types Dropdown */}
+          <div className="relative inline-block text-left">
+            <button onClick={() => setShowFileTypeDropdown(!showFileTypeDropdown)} className="bg-white px-4 py-2 rounded-md shadow text-sm text-black flex items-center gap-2">
+              {selectedFileType.icon} {selectedFileType.label} <span className="text-gray-500">▼</span>
+            </button>
+            {showFileTypeDropdown && (
+              <div className="absolute z-20 mt-2 w-48 rounded-md bg-white shadow-lg">
+                <ul className="py-1 text-sm text-gray-700">
+                  {[
+                    { label: "All File Types", icon: "📂" },
+                    { label: "Chart", icon: "📊" },
+                    { label: "Dashboard", icon: "🧩" },
+                  ].map((item) => (
+                    <li key={item.label} onClick={() => { setSelectedFileType(item); setShowFileTypeDropdown(false); }} className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2">
+                      {item.icon} {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Plot Type Button */}
+          <button onClick={() => setShowPlotTypeModal(true)} className="relative rounded-md bg-white px-4 py-2 pr-8 text-sm text-black border appearance-none">
+            📈 Plot Type
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">▼</span>
+          </button>
         </div>
-      )}
 
+        {/* Upload Section */}
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <input type="file" accept=".xlsx, .xls, .csv" onChange={(e) => setSelectedFile(e.target.files[0])}
+            className="text-sm text-white file:bg-blue-500 file:text-black  file:border-0 file:px-4 file:py-2 file:rounded-md file:cursor-pointer"
+          />
+          <button onClick={handleUpload} className="bg-blue-500 text-black px-4 py-2 rounded-md hover:text-white hover:bg-blue-700">
+            Upload Excel File
+          </button>
+        </div>
+          {/* Plot Chart */}
       {excelData.length > 0 && selectedPlotType && (
-        <PlotlyChart
-          data={excelData}
-          xAxis={xAxisColumn}
-          yAxis={yAxisColumn}
-          zAxis={zAxisColumn} 
-          plotType={selectedPlotType}
-        />
+        <>
+          <h3 className="mt-8 text-xl font-semibold text-center"> Your Chart Preview</h3>
+          <PlotlyChart
+            data={excelData}
+            xAxis={xAxisColumn}
+            yAxis={yAxisColumn}
+            zAxis={zAxisColumn}
+            plotType={selectedPlotType}
+          />
+        </>
       )}
+      </div>
 
+
+      {/* Plot Type Modal */}
       {showPlotTypeModal && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50 px-4 py-6">
           <div className="w-full max-w-4xl bg-white rounded-lg p-6 overflow-y-auto max-h-[90vh] text-black">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold">Select Trace Type</h3>
-              <button
-                onClick={() => setShowPlotTypeModal(false)}
-                className="text-xl font-bold hover:text-red-600"
-              >
-                &times;
-              </button>
+              <button onClick={() => setShowPlotTypeModal(false)} className="text-xl font-bold hover:text-red-600">&times;</button>
             </div>
             {Object.entries(chartCategories).map(([category, types]) => (
               <div key={category} className="mb-6">
                 <h4 className="text-lg font-semibold mb-2">{category}</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {types.map((type, index) => (
-                    <div
-                      key={index}
-                      className="border rounded-md p-3 text-center bg-gray-100 hover:bg-blue-100 cursor-pointer"
-                      onClick={() => {
-                        setSelectedPlotType(type);
-                        setShowPlotTypeModal(false); // Close modal
-                      }}
-                    >
+                    <div key={index} onClick={() => { setSelectedPlotType(type); setShowPlotTypeModal(false); }}
+                      className="border rounded-md p-3 text-center bg-gray-100 hover:bg-blue-100 cursor-pointer">
                       {type}
                     </div>
                   ))}
@@ -442,109 +221,48 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Auth Modals */}
       {modal !== "none" && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black bg-opacity-50 px-2 py-4">
           <div className="relative flex w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-lg sm:max-w-2xl md:flex-row">
-            <button
-              onClick={() => setModal("none")}
-              className="absolute right-4 top-4 z-30 text-gray-400 hover:text-black text-2xl font-bold"
-            >
-              &times;
-            </button>
-
-            {/* Left Side Panel */}
+            {modal === "signup" && (
+              <button onClick={() => setModal("none")} className="absolute right-4 top-4 z-30 text-gray-400 hover:text-black text-2xl font-bold">&times;</button>
+            )}
             <div className="flex w-full items-center justify-center bg-slate-800 p-6 text-white md:w-1/2">
               <div className="text-center md:text-left">
-                <h3 className="text-2xl font-semibold">📊 Chart Studio</h3>
-                <p className="mt-2 text-sm">
-                  Analyze and visualize data, together.
-                </p>
+                <h3 className="text-2xl font-semibold">Chart Studio</h3>
+                <p className="mt-2 text-sm">Analyze and visualize data, together.</p>
+                <p className="mt-2 text-sm">Sign in or sign up now!</p>
               </div>
             </div>
-
-            {/* Right Form Panel */}
             <div className="relative w-full p-6 md:w-1/2">
               <div className="mb-4 flex justify-between border-b pb-2 text-sm">
-                <button
-                  className={`${
-                    modal === "signin" ? "font-bold" : "text-gray-500"
-                  }`}
-                  onClick={() => setModal("signin")}
-                >
-                  SIGN IN
-                </button>
-                <button
-                  className={`${
-                    modal === "signup" ? "font-bold" : "text-gray-500"
-                  }`}
-                  onClick={() => setModal("signup")}
-                >
-                  SIGN UP
-                </button>
+                <button className={`${modal === "signin" ? "font-bold" : "text-gray-500"}`} onClick={() => setModal("signin")}>SIGN IN</button>
+                <button className={`${modal === "signup" ? "font-bold" : "text-gray-500"}`} onClick={() => setModal("signup")}>SIGN UP</button>
               </div>
-
               {modal === "signin" ? (
                 <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Email"
-                    value={authData.email}
-                    onChange={(e) =>
-                      setAuthData({ ...authData, email: e.target.value })
-                    }
-                    className="w-full rounded-md border px-4 py-2 text-black"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    value={authData.password}
-                    onChange={(e) =>
-                      setAuthData({ ...authData, password: e.target.value })
-                    }
-                    className="w-full rounded-md border px-4 py-2 text-black"
-                  />
-                  <button
-                    onClick={handleSignIn}
-                    className="w-full rounded-md bg-blue-600 px-4 py-2 text-white"
-                  >
-                    SIGN IN
-                  </button>
+                  <input type="text" placeholder="Username" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <input type="password" placeholder="Password" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <button onClick={() => setSuccessMessage("Signed in successfully")} className="w-full rounded-md bg-blue-600 px-4 py-2 text-white">SIGN IN</button>
+                  <div className="text-center text-sm text-gray-500 mt-2">or continue with</div>
+                  <div className="mt-2 flex justify-center gap-4">
+                    <FaFacebookF className="text-blue-600 hover:text-blue-800 cursor-pointer" size={20} />
+                    <FaTwitter className="text-blue-400 hover:text-blue-600 cursor-pointer" size={20} />
+                    <FaGoogle className="text-red-500 hover:text-red-700 cursor-pointer" size={20} />
+                  </div>
+                  <a href="/forgot-password" className="text-center text-sm text-blue-500 hover:underline block mt-4">Forgot your password?</a>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={authData.username}
-                    onChange={(e) =>
-                      setAuthData({ ...authData, username: e.target.value })
-                    }
-                    className="w-full rounded-md border px-4 py-2 text-black"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Email"
-                    value={authData.email}
-                    onChange={(e) =>
-                      setAuthData({ ...authData, email: e.target.value })
-                    }
-                    className="w-full rounded-md border px-4 py-2 text-black"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    value={authData.password}
-                    onChange={(e) =>
-                      setAuthData({ ...authData, password: e.target.value })
-                    }
-                    className="w-full rounded-md border px-4 py-2 text-black"
-                  />
-                  <button
-                    onClick={handleSignUp}
-                    className="w-full rounded-md bg-blue-600 px-4 py-2 text-white"
-                  >
-                    SIGN UP
-                  </button>
+                  <input type="text" placeholder="First Name" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <input type="text" placeholder="Last Name" className="w-full rounded-md border px-4 py-2 text-black" />
+                  {/* <input type="text" placeholder="Organization Name" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <input type="text" placeholder="Role" className="w-full rounded-md border px-4 py-2 text-black" /> */}
+                  <input type="email" placeholder="Email" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <input type="text" placeholder="Username" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <input type="password" placeholder="Password" className="w-full rounded-md border px-4 py-2 text-black" />
+                  <button onClick={() => setSuccessMessage("Signed up successfully")} className="w-full rounded-md bg-blue-600 px-4 py-2 text-white">SIGN UP</button>
                 </div>
               )}
             </div>
