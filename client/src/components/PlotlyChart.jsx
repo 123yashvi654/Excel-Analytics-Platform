@@ -1,4 +1,5 @@
-import React from "react";
+//this is plotly chart when i slect any chart plolty chart was automatic x/y/z axies 
+//create and show the chart  
 import Plot from "react-plotly.js";
 
 const PlotlyChart = ({ data, xAxis, yAxis, zAxis, plotType }) => {
@@ -11,11 +12,11 @@ const PlotlyChart = ({ data, xAxis, yAxis, zAxis, plotType }) => {
   const z = zAxis ? data.map((row) => row[zAxis]) : [];
 
   if (!Array.isArray(x) || !Array.isArray(y) || x.length === 0 || y.length === 0) {
-    return <p className="text-red-500">⚠️ Selected X or Y axis is invalid or empty.</p>;
-  }
+    return <p className="text-red-500"> Selected X or Y axis is invalid or empty.</p>;
+  } //this is check frist data was availbale or not , x-y was selected or not 
 
   const reshapeZ = (flatZ) => {
-    const size = Math.floor(Math.sqrt(flatZ.length));
+    const size = Math.floor(Math.sqrt(flatZ.length)); //used for heatmap, contor and 3D surface
     const grid = [];
     for (let i = 0; i < flatZ.length; i += size) {
       grid.push(flatZ.slice(i, i + size));
@@ -23,15 +24,15 @@ const PlotlyChart = ({ data, xAxis, yAxis, zAxis, plotType }) => {
     return grid;
   };
 
-  let trace;
-  let layout = {
+  let trace; //this is define chart data and type
+  let layout = {   //this is setup title, axies , plot etc.
     title: plotType,
     autosize: true,
     xaxis: { title: xAxis },
     yaxis: { title: yAxis },
   };
 
-  switch (plotType) {
+  switch (plotType) { //select plot type and it was matched 
     case "Scatter":
       trace = { x, y, type: "scatter", mode: "markers" };
       break;
@@ -188,7 +189,7 @@ const PlotlyChart = ({ data, xAxis, yAxis, zAxis, plotType }) => {
 
   return (
     <div className="mt-8 z-10 bg-white rounded p-4 shadow-lg w-full max-w-5xl text-black">
-      <Plot
+      <Plot  //this is used to render chart from react-pltly.js
         data={[trace]}
         layout={layout}
         config={{ responsive: true }}
